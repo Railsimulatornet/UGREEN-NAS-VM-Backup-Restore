@@ -1,0 +1,15 @@
+# runtime logs
+*.log
+
+# generated backup folders
+[0-3][0-9]_[0-1][0-9]_[0-9][0-9][0-9][0-9]_*
+
+# restore temp directory
+.vm_restore_tmp/
+
+# local editor / OS files
+.DS_Store
+Thumbs.db
+
+*.docx
+*.zip
