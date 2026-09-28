@@ -1,0 +1,123 @@
+name: Release v4.0.1 - Prüfung
+on:
+  push:
+    branches: [release/v4.0.1-validation]
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Exakten gemergten Stand laden
+        run: |
+          set -euo pipefail
+          git clone --quiet https://github.com/Railsimulatornet/UGREEN-NAS-VM-Backup-Restore.git source
+          git -C source checkout --quiet f6245befcf9ac3620ef79bfbdf4416ba7a698426
+          git -C source rev-parse HEAD
+          bash -n source/VMBackup/vm_backup.sh
+          bash -n source/VMBackup/vm_restore.sh
+          bash -n source/VMBackup/vm_backup.conf
+          sha256sum source/VMBackup/*
+      - name: Aufbau des bisherigen Release-Pakets prüfen
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir previous
+          gh release download v4.0 --repo Railsimulatornet/UGREEN-NAS-VM-Backup-Restore --pattern UGREEN_VM_Backup_Restore_V4.0.zip --dir previous
+          echo 'dfea9655c03e23e655231991527836db6254a36d74e90ca94eccaec37b084eee  previous/UGREEN_VM_Backup_Restore_V4.0.zip' | sha256sum -c -
+          python3 - <<'PY'
+          import zipfile
+          with zipfile.ZipFile('previous/UGREEN_VM_Backup_Restore_V4.0.zip') as z:
+              assert z.testzip() is None
+              for info in z.infolist():
+                  print('PREVIOUS_PACKAGE', repr(info.filename), info.file_size)
+          PY
+      - name: Retention und Restore-Pfadauflösung isoliert testen
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os, pathlib, re, shutil, subprocess, tempfile, unittest
+          source = pathlib.Path('source/VMBackup/vm_backup.sh').read_text()
+          restore = pathlib.Path('source/VMBackup/vm_restore.sh').read_text()
+          def function(text, name):
+              match = re.search(r'^' + re.escape(name) + r'\(\) \{\n.*?^\}', text, re.M | re.S)
+              if not match:
+                  raise RuntimeError('Function not found: ' + name)
+              return match.group(0)
+          functions = '\n'.join(function(source, name) for name in ['backup_dir_sort_key', 'cleanup_old_backups'])
+          class RetentionTests(unittest.TestCase):
+              def run_case(self, names, keep, expected, root_name='backups', extras=(), failed=False):
+                  with tempfile.TemporaryDirectory(prefix='vm-retention-test-') as temporary:
+                      root = pathlib.Path(temporary) / root_name
+                      root.mkdir()
+                      for name in [*names, *extras]:
+                          (root / name / 'vm').mkdir(parents=True)
+                          (root / name / 'vm' / 'test.xml').write_text('<domain/>')
+                          (root / name / 'vm' / 'disk.qcow2').write_text('DUMMY TEST DATA')
+                      outside = pathlib.Path(temporary) / 'outside'
+                      outside.mkdir()
+                      (outside / 'keep').write_text('KEEP')
+                      (root / '2000_01_01_00-00-00').symlink_to(outside, target_is_directory=True)
+                      (root / '1999_01_01_00-00-00').write_text('NOT A DIRECTORY')
+                      code = 'log() { :; }\n' + functions + '\ncleanup_old_backups\n'
+                      env = dict(os.environ, BACKUP_ROOT=str(root), RETENTION_COUNT=str(keep), BACKUP_OK='0' if failed else '1')
+                      result = subprocess.run(['bash', '-c', code], env=env, text=True, capture_output=True, timeout=15)
+                      self.assertEqual(result.returncode, 0, result.stderr)
+                      actual = {name for name in names if (root / name).is_dir()}
+                      self.assertEqual(actual, set(expected), result.stdout + result.stderr)
+                      for name in extras:
+                          self.assertTrue((root / name / 'vm' / 'disk.qcow2').exists(), name)
+                      self.assertTrue((outside / 'keep').exists())
+                      self.assertTrue((root / '2000_01_01_00-00-00').is_symlink())
+                      self.assertTrue((root / '1999_01_01_00-00-00').is_file())
+              def test_legacy_month(self):
+                  self.run_case(['29_08_2026_23-00-00','01_09_2026_23-00-00'], 1, ['01_09_2026_23-00-00'])
+              def test_new_month(self):
+                  self.run_case(['2026_08_29_23-00-00','2026_09_01_23-00-00'], 1, ['2026_09_01_23-00-00'])
+              def test_legacy_year(self):
+                  self.run_case(['31_12_2025_23-59-59','01_01_2026_00-00-00'], 1, ['01_01_2026_00-00-00'])
+              def test_new_year(self):
+                  self.run_case(['2025_12_31_23-59-59','2026_01_01_00-00-00'], 1, ['2026_01_01_00-00-00'])
+              def test_mixed_migration(self):
+                  self.run_case(['31_08_2026_12-00-00','01_09_2026_12-00-00','2026_09_02_12-00-00'], 2, ['01_09_2026_12-00-00','2026_09_02_12-00-00'])
+              def test_time_of_day(self):
+                  self.run_case(['2026_09_28_08-00-00','2026_09_28_09-00-00','2026_09_28_09-00-01'], 1, ['2026_09_28_09-00-01'])
+              def test_disabled(self):
+                  names = ['31_08_2026_12-00-00','2026_09_02_12-00-00']
+                  self.run_case(names, 0, names)
+              def test_more_slots_than_backups(self):
+                  names = ['31_08_2026_12-00-00','2026_09_02_12-00-00']
+                  self.run_case(names, 4, names)
+              def test_empty(self):
+                  self.run_case([], 1, [])
+              def test_unrelated_directories(self):
+                  self.run_case(['2026_09_01_00-00-00','2026_09_02_00-00-00'], 1, ['2026_09_02_00-00-00'], extras=['Archive','Screens','my backup','2026_09_01_00-00-00-copy'])
+              def test_spaces_in_root(self):
+                  self.run_case(['2026_09_01_00-00-00','2026_09_02_00-00-00'], 1, ['2026_09_02_00-00-00'], root_name='VM Backups')
+              def test_tabs_in_root(self):
+                  self.run_case(['2026_09_01_00-00-00','2026_09_02_00-00-00'], 1, ['2026_09_02_00-00-00'], root_name='VM\tBackups')
+              def test_newline_in_root(self):
+                  self.run_case(['2026_09_01_00-00-00','2026_09_02_00-00-00'], 1, ['2026_09_02_00-00-00'], root_name='VM\nBackups')
+              def test_invalid_date_directory_is_preserved(self):
+                  self.run_case(['2026_09_01_00-00-00','2026_09_02_00-00-00'], 1, ['2026_09_02_00-00-00'], extras=['2026_99_99_99-99-99'])
+              def test_failed_backup_preserves_existing(self):
+                  names = ['2026_09_01_00-00-00','2026_09_02_00-00-00']
+                  self.run_case(names, 1, names, failed=True)
+              def test_restore_both_formats(self):
+                  fn = function(restore, 'resolve_backup_dir')
+                  with tempfile.TemporaryDirectory(prefix='vm-restore-test-') as temporary:
+                      root = pathlib.Path(temporary)
+                      for name in ['28_09_2026_12-00-00','2026_09_28_12-00-00']:
+                          directory = root / name
+                          directory.mkdir()
+                          for argument in [name, str(directory)]:
+                              result = subprocess.run(['bash','-c','die() { exit 1; };\n'+fn+'\nresolve_backup_dir "$1"','test',argument], env=dict(os.environ, BACKUP_ROOT=str(root)), capture_output=True, text=True, timeout=10)
+                              self.assertEqual(result.returncode, 0, result.stderr)
+                              self.assertEqual(result.stdout.strip(), str(directory.resolve()))
+          unittest.main(verbosity=2)
+          PY
