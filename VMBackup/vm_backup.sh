@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# vm_backup.sh - Backup der KVM/UGREEN-VMs v4.0
+# vm_backup.sh - Backup der KVM/UGREEN-VMs v4.0.1
 # Copyright (c) 2026 Roman Glos for Ugreen NAS Community
 #
 # - sichert ausgewählte oder alle VMs per virsh
@@ -11,7 +11,7 @@
 # Konfiguration liegt standardmäßig in: ./vm_backup.conf
 
 SCRIPT_NAME="vm_backup.sh"
-SCRIPT_VERSION="v4.0"
+SCRIPT_VERSION="v4.0.1"
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG_FILE="${SCRIPT_DIR}/vm_backup.conf"
@@ -196,8 +196,8 @@ log() {
   echo "$(date '+%d.%m.%Y %H:%M:%S') - $msg" | tee -a "$LOG_FILE"
 }
 
-# Deutsches Datumsformat für den Ordnernamen: 04_12_2025_14-59-44
-BACKUP_TIMESTAMP="$(date '+%d_%m_%Y_%H-%M-%S')"
+# Chronologisch sortierbares Datumsformat für den Ordnernamen: 2026_09_28_21-30-00
+BACKUP_TIMESTAMP="$(date '+%Y_%m_%d_%H-%M-%S')"
 BACKUP_DIR="$BACKUP_ROOT/$BACKUP_TIMESTAMP"
 
 log "=== VM-Backup gestartet ==="
@@ -319,11 +319,50 @@ backup_vm() {
   done
 }
 
+backup_dir_sort_key() {
+  local name="$1"
+
+  # Aktuelles Format: YYYY_MM_DD_HH-MM-SS
+  if [[ "$name" =~ ^([0-9]{4})_([0-9]{2})_([0-9]{2})_([0-9]{2})-([0-9]{2})-([0-9]{2})$ ]]; then
+    printf '%s%s%s%s%s%s' \
+      "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" "${BASH_REMATCH[3]}" \
+      "${BASH_REMATCH[4]}" "${BASH_REMATCH[5]}" "${BASH_REMATCH[6]}"
+    return 0
+  fi
+
+  # Legacy-Format bis v4.0: DD_MM_YYYY_HH-MM-SS
+  if [[ "$name" =~ ^([0-9]{2})_([0-9]{2})_([0-9]{4})_([0-9]{2})-([0-9]{2})-([0-9]{2})$ ]]; then
+    printf '%s%s%s%s%s%s' \
+      "${BASH_REMATCH[3]}" "${BASH_REMATCH[2]}" "${BASH_REMATCH[1]}" \
+      "${BASH_REMATCH[4]}" "${BASH_REMATCH[5]}" "${BASH_REMATCH[6]}"
+    return 0
+  fi
+
+  return 1
+}
+
 cleanup_old_backups() {
   if [ "${RETENTION_COUNT:-0}" -gt 0 ]; then
     log "Bereinige alte Backups – es bleiben die letzten $RETENTION_COUNT Läufe."
+
     local -a dirs=()
-    mapfile -t dirs < <(find "$BACKUP_ROOT" -mindepth 1 -maxdepth 1 -type d | sort -r)
+    local -a sortable=()
+    local dir name key entry
+
+    while IFS= read -r -d '' dir; do
+      name="${dir##*/}"
+      if key="$(backup_dir_sort_key "$name")"; then
+        sortable+=("${key}"$'\t'"${dir}")
+      fi
+    done < <(find "$BACKUP_ROOT" -mindepth 1 -maxdepth 1 -type d -print0)
+
+    if [ ${#sortable[@]} -gt 0 ]; then
+      mapfile -t sortable < <(printf '%s\n' "${sortable[@]}" | sort -r)
+      for entry in "${sortable[@]}"; do
+        dirs+=("${entry#*$'\t'}")
+      done
+    fi
+
     if [ ${#dirs[@]} -gt "$RETENTION_COUNT" ]; then
       local i
       for (( i=RETENTION_COUNT; i<${#dirs[@]}; i++ )); do
