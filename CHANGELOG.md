@@ -1,5 +1,15 @@
 # Changelog
 
+## V4.0.1 - 2026-09-28
+
+### Fixes
+
+- changed backup directory timestamps to the chronologically sortable format `YYYY_MM_DD_HH-MM-SS`
+- fixed retention sorting across month and year boundaries
+- cleanup now only considers recognized backup directory names
+- legacy `DD_MM_YYYY_HH-MM-SS` backup directories remain supported and are normalized for retention sorting
+- thanks to Ghent for reporting the issue
+
 ## V4.0 - 2026-04-15
 
 Final release package for:
