@@ -324,13 +324,17 @@ backup_dir_sort_key() {
 
   # Aktuelles Format: YYYY_MM_DD_HH-MM-SS
   if [[ "$name" =~ ^([0-9]{4})_([0-9]{2})_([0-9]{2})_([0-9]{2})-([0-9]{2})-([0-9]{2})$ ]]; then
-    printf '%s%s%s%s%s%s'       "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" "${BASH_REMATCH[3]}"       "${BASH_REMATCH[4]}" "${BASH_REMATCH[5]}" "${BASH_REMATCH[6]}"
+    printf '%s%s%s%s%s%s' \
+      "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" "${BASH_REMATCH[3]}" \
+      "${BASH_REMATCH[4]}" "${BASH_REMATCH[5]}" "${BASH_REMATCH[6]}"
     return 0
   fi
 
   # Legacy-Format bis v4.0: DD_MM_YYYY_HH-MM-SS
   if [[ "$name" =~ ^([0-9]{2})_([0-9]{2})_([0-9]{4})_([0-9]{2})-([0-9]{2})-([0-9]{2})$ ]]; then
-    printf '%s%s%s%s%s%s'       "${BASH_REMATCH[3]}" "${BASH_REMATCH[2]}" "${BASH_REMATCH[1]}"       "${BASH_REMATCH[4]}" "${BASH_REMATCH[5]}" "${BASH_REMATCH[6]}"
+    printf '%s%s%s%s%s%s' \
+      "${BASH_REMATCH[3]}" "${BASH_REMATCH[2]}" "${BASH_REMATCH[1]}" \
+      "${BASH_REMATCH[4]}" "${BASH_REMATCH[5]}" "${BASH_REMATCH[6]}"
     return 0
   fi
 
@@ -348,7 +352,28 @@ cleanup_old_backups() {
     while IFS= read -r -d '' dir; do
       name="${dir##*/}"
       if key="$(backup_dir_sort_key "$name")"; then
-        sortable+=("$key"
+        sortable+=("${key}"$'\t'"${dir}")
+      fi
+    done < <(find "$BACKUP_ROOT" -mindepth 1 -maxdepth 1 -type d -print0)
+
+    if [ ${#sortable[@]} -gt 0 ]; then
+      mapfile -t sortable < <(printf '%s\n' "${sortable[@]}" | sort -r)
+      for entry in "${sortable[@]}"; do
+        dirs+=("${entry#*$'\t'}")
+      done
+    fi
+
+    if [ ${#dirs[@]} -gt "$RETENTION_COUNT" ]; then
+      local i
+      for (( i=RETENTION_COUNT; i<${#dirs[@]}; i++ )); do
+        log "Lösche altes Backup: ${dirs[$i]}"
+        rm -rf "${dirs[$i]}" || log "WARNUNG: ${dirs[$i]} konnte nicht gelöscht werden."
+      done
+    else
+      log "Keine alten Backups zu löschen."
+    fi
+  fi
+}
 
 get_display_list() {
   local dom
