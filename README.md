@@ -83,9 +83,31 @@ Wichtige Variablen:
 ```
 BACKUP_ROOT="/volume1/VMBackup"
 VM_NAMES="Win2022 Windows11"
-MAIL_TO="deine@mail.de"
+SMTP_TO="deine@mail.de"
 SMTP_SERVER="smtp.server.de"
 ```
+
+---
+
+## 🆕 Update auf v4.0.1
+
+Neue Sicherungen erhalten Ordnernamen im Format `JJJJ_MM_TT_HH-MM-SS`, zum Beispiel
+`2026_09_28_21-30-00`. Bestehende Sicherungen im bisherigen Format `TT_MM_JJJJ_HH-MM-SS`
+bleiben beim Restore und bei der chronologischen Aufbewahrung kompatibel. Sie müssen
+nicht umbenannt werden.
+
+**Beim Update die eigene `vm_backup.conf` behalten und nicht durch die Beispielkonfiguration überschreiben.**
+Für dieses Update genügt der Austausch von `VMBackup/vm_backup.sh`; `vm_restore.sh` ist unverändert.
+
+Die automatische Bereinigung läuft nur nach einem erfolgreichen Backup. Schlägt der
+Lauf fehl, bleiben vorhandene Sicherungen erhalten und das Skript liefert Exitcode 1.
+Nicht lesbare Datenträgerlisten sowie VMs ohne dateibasierte Datenträger gelten als
+Fehler. `RETENTION_COUNT=0` deaktiviert die automatische Löschung; positive ganze
+Zahlen legen die Anzahl der aufzubewahrenden Läufe fest. Ungültige Werte deaktivieren
+die Bereinigung mit einer Warnung.
+
+Das mitgelieferte Handbuch bleibt auf Stand V4.0. Seine Beispiele mit dem alten
+Datumsformat sind weiterhin gültig; für neue Backups den tatsächlichen neuen Ordnernamen verwenden.
 
 ---
 
@@ -101,7 +123,7 @@ cd /volume1/VMBackup
 ## ♻️ Restore starten
 
 ```
-./vm_restore.sh
+./vm_restore.sh Win2022 /volume1/VMBackup/2026_09_28_21-30-00
 ```
 
 ---
@@ -111,7 +133,7 @@ cd /volume1/VMBackup
 Für vollständige Wiederherstellung:
 
 ```
-./vm_restore.sh --dr
+./vm_restore.sh --dr Win2022 /volume1/VMBackup/2026_09_28_21-30-00
 ```
 
 ➡️ Details siehe Handbuch (PDF)
