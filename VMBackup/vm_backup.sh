@@ -114,10 +114,19 @@ translate_backup_msg() {
     "Keine alten Backups zu löschen.") printf 'No old backups to delete.'; return ;;
     "Benachrichtigungs-Mail per Python-SMTP versendet.") printf 'Notification email sent via Python SMTP.'; return ;;
     "Benachrichtigungs-Mail per sendmail versendet.") printf 'Notification email sent via sendmail.'; return ;;
+    "WARNUNG: Ungültiger RETENTION_COUNT – automatische Bereinigung übersprungen.") printf 'WARNING: Invalid RETENTION_COUNT - automatic cleanup skipped.'; return ;;
+    "WARNUNG: Backup fehlgeschlagen – automatische Bereinigung übersprungen.") printf 'WARNING: Backup failed - automatic cleanup skipped.'; return ;;
+    "WARNUNG: Backup-Sortierung fehlgeschlagen – automatische Bereinigung übersprungen.") printf 'WARNING: Backup sorting failed - automatic cleanup skipped.'; return ;;
     "Benachrichtigung wird übersprungen.") printf 'Notification skipped.'; return ;;
   esac
 
-  if [[ "$msg" == Backup-Verzeichnis:* ]]; then
+  if [[ "$msg" == FEHLER:\ Datenträgerliste\ für\ VM\ *\ konnte\ nicht\ gelesen\ werden. ]]; then
+    local vm="${msg#FEHLER: Datenträgerliste für VM }"
+    printf 'ERROR: Could not read disk list for VM %s.' "${vm% konnte nicht gelesen werden.}"; return
+  elif [[ "$msg" == FEHLER:\ Für\ VM\ *\ wurden\ keine\ dateibasierten\ Datenträger\ gefunden. ]]; then
+    local vm="${msg#FEHLER: Für VM }"
+    printf 'ERROR: No file-backed disks found for VM %s.' "${vm% wurden keine dateibasierten Datenträger gefunden.}"; return
+  elif [[ "$msg" == Backup-Verzeichnis:* ]]; then
     printf 'Backup directory: %s' "${msg#Backup-Verzeichnis: }"; return
   elif [[ "$msg" == Zu\ sichernde\ VMs:* ]]; then
     printf 'VMs to back up:%s' "${msg#Zu sichernde VMs:}"; return
@@ -293,10 +302,18 @@ backup_vm() {
   fi
 
   local -a disks=()
-  mapfile -t disks < <(virsh domblklist "$vm" --details 2>>"$LOG_FILE" | awk '$2=="disk" && $4 ~ /^\// {print $4}')
+  local disk_listing
+  if ! disk_listing="$(virsh domblklist "$vm" --details 2>>"$LOG_FILE")"; then
+    log "FEHLER: Datenträgerliste für VM $vm konnte nicht gelesen werden."
+    BACKUP_OK=0
+    return
+  fi
+  mapfile -t disks < <(printf '%s\n' "$disk_listing" | awk '$2=="disk" && $4 ~ /^\// {print $4}')
 
   if [ ${#disks[@]} -eq 0 ]; then
-    log "WARNUNG: Für VM $vm wurden keine Datenträger gefunden."
+    log "FEHLER: Für VM $vm wurden keine dateibasierten Datenträger gefunden."
+    BACKUP_OK=0
+    return
   fi
 
   local disk base cp_opts
@@ -320,59 +337,81 @@ backup_vm() {
 }
 
 backup_dir_sort_key() {
-  local name="$1"
+  local name="$1" year month day hour minute second
 
-  # Aktuelles Format: YYYY_MM_DD_HH-MM-SS
+  # Neues und bisheriges Format in dieselbe chronologische Reihenfolge bringen.
   if [[ "$name" =~ ^([0-9]{4})_([0-9]{2})_([0-9]{2})_([0-9]{2})-([0-9]{2})-([0-9]{2})$ ]]; then
-    printf '%s%s%s%s%s%s' \
-      "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" "${BASH_REMATCH[3]}" \
-      "${BASH_REMATCH[4]}" "${BASH_REMATCH[5]}" "${BASH_REMATCH[6]}"
-    return 0
+    year="${BASH_REMATCH[1]}"; month="${BASH_REMATCH[2]}"; day="${BASH_REMATCH[3]}"
+  elif [[ "$name" =~ ^([0-9]{2})_([0-9]{2})_([0-9]{4})_([0-9]{2})-([0-9]{2})-([0-9]{2})$ ]]; then
+    year="${BASH_REMATCH[3]}"; month="${BASH_REMATCH[2]}"; day="${BASH_REMATCH[1]}"
+  else
+    return 1
   fi
+  hour="${BASH_REMATCH[4]}"; minute="${BASH_REMATCH[5]}"; second="${BASH_REMATCH[6]}"
 
-  # Legacy-Format bis v4.0: DD_MM_YYYY_HH-MM-SS
-  if [[ "$name" =~ ^([0-9]{2})_([0-9]{2})_([0-9]{4})_([0-9]{2})-([0-9]{2})-([0-9]{2})$ ]]; then
-    printf '%s%s%s%s%s%s' \
-      "${BASH_REMATCH[3]}" "${BASH_REMATCH[2]}" "${BASH_REMATCH[1]}" \
-      "${BASH_REMATCH[4]}" "${BASH_REMATCH[5]}" "${BASH_REMATCH[6]}"
-    return 0
+  # Nicht nur das Namensmuster, sondern auch Kalenderdatum und Uhrzeit prüfen.
+  # 10# verhindert, dass führende Nullen als Oktalzahlen interpretiert werden.
+  local y=$((10#$year)) m=$((10#$month)) d=$((10#$day))
+  local -a month_days=(0 31 28 31 30 31 30 31 31 30 31 30 31)
+  (( y >= 1 && m >= 1 && m <= 12 )) || return 1
+  if (( y % 400 == 0 || (y % 4 == 0 && y % 100 != 0) )); then
+    month_days[2]=29
   fi
-
-  return 1
+  (( d >= 1 && d <= month_days[m] && 10#$hour < 24 && 10#$minute < 60 && 10#$second < 60 )) || return 1
+  printf '%s%s%s%s%s%s' "$year" "$month" "$day" "$hour" "$minute" "$second"
 }
 
 cleanup_old_backups() {
-  if [ "${RETENTION_COUNT:-0}" -gt 0 ]; then
-    log "Bereinige alte Backups – es bleiben die letzten $RETENTION_COUNT Läufe."
-
-    local -a dirs=()
-    local -a sortable=()
-    local dir name key entry
-
-    while IFS= read -r -d '' dir; do
-      name="${dir##*/}"
-      if key="$(backup_dir_sort_key "$name")"; then
-        sortable+=("${key}"$'\t'"${dir}")
-      fi
-    done < <(find "$BACKUP_ROOT" -mindepth 1 -maxdepth 1 -type d -print0)
-
-    if [ ${#sortable[@]} -gt 0 ]; then
-      mapfile -t sortable < <(printf '%s\n' "${sortable[@]}" | sort -r)
-      for entry in "${sortable[@]}"; do
-        dirs+=("${entry#*$'\t'}")
-      done
-    fi
-
-    if [ ${#dirs[@]} -gt "$RETENTION_COUNT" ]; then
-      local i
-      for (( i=RETENTION_COUNT; i<${#dirs[@]}; i++ )); do
-        log "Lösche altes Backup: ${dirs[$i]}"
-        rm -rf "${dirs[$i]}" || log "WARNUNG: ${dirs[$i]} konnte nicht gelöscht werden."
-      done
-    else
-      log "Keine alten Backups zu löschen."
-    fi
+  local keep="${RETENTION_COUNT:-0}"
+  # Ungültige Konfiguration darf niemals zu einer automatischen Löschung führen.
+  if [[ ! "$keep" =~ ^[0-9]{1,9}$ ]]; then
+    log "WARNUNG: Ungültiger RETENTION_COUNT – automatische Bereinigung übersprungen."
+    return 0
   fi
+  keep=$((10#$keep))
+  (( keep > 0 )) || return 0
+
+  # Bei einem unvollständigen Lauf die vorhandenen Sicherungen behalten.
+  if [[ "${BACKUP_OK:-0}" != "1" ]]; then
+    log "WARNUNG: Backup fehlgeschlagen – automatische Bereinigung übersprungen."
+    return 0
+  fi
+
+  log "Bereinige alte Backups – es bleiben die letzten $RETENTION_COUNT Läufe."
+  local -a dirs=() sortable=()
+  local dir name key entry sorted records
+
+  # Globbing erhält Pfade bytegetreu; Symlinks und andere Dateien ausschließen.
+  for dir in "$BACKUP_ROOT"/*; do
+    [[ -d "$dir" && ! -L "$dir" ]] || continue
+    name="${dir##*/}"
+    if key="$(backup_dir_sort_key "$name")"; then
+      # Nur geprüfte Namen (ohne Trennzeichen), niemals volle Pfade sortieren.
+      sortable+=("$key $name")
+    fi
+  done
+
+  if (( ${#sortable[@]} <= keep )); then
+    log "Keine alten Backups zu löschen."
+    return 0
+  fi
+  printf -v records '%s\n' "${sortable[@]}"
+  if ! sorted="$(LC_ALL=C sort -r <<< "$records")"; then
+    log "WARNUNG: Backup-Sortierung fehlgeschlagen – automatische Bereinigung übersprungen."
+    return 0
+  fi
+  while IFS= read -r entry; do
+    [[ -n "$entry" ]] || continue
+    dirs+=("$BACKUP_ROOT/${entry#* }")
+  done <<< "$sorted"
+
+  local i
+  for (( i=keep; i<${#dirs[@]}; i++ )); do
+    dir="${dirs[$i]}"
+    [[ -d "$dir" && ! -L "$dir" ]] || continue
+    log "Lösche altes Backup: $dir"
+    rm -rf -- "$dir" || log "WARNUNG: $dir konnte nicht gelöscht werden."
+  done
 }
 
 get_display_list() {
@@ -823,3 +862,9 @@ if [ "$MAIL_ON" = "always" ] || { [ "$MAIL_ON" = "error" ] && [ "$BACKUP_OK" -ne
 fi
 
 log "=== VM-Backup abgeschlossen ==="
+
+# Auch Cron und andere Aufrufer müssen einen fehlgeschlagenen Lauf erkennen.
+if [ "$BACKUP_OK" -ne 1 ]; then
+  exit 1
+fi
+exit 0
