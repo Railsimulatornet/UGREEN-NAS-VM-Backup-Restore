@@ -1,0 +1,103 @@
+name: Release v4.0.1 - Sicherheitsfix und Entwurf
+on:
+  push:
+    branches: [release/v4.0.1-validation]
+    paths: [.github/workflows/release-prepare.yml]
+permissions:
+  contents: write
+concurrency:
+  group: prepare-release-v4.0.1
+  cancel-in-progress: false
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: bash
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Korrektur auf dem geprüften Ausgangsstand vorbereiten
+        run: |
+          set -euo pipefail
+          git clone --quiet "https://github.com/$GITHUB_REPOSITORY.git" preparation
+          git -C preparation checkout --quiet "$GITHUB_SHA"
+          git -C preparation worktree add ../candidate -b fix/v4.0.1-release-safety f6245befcf9ac3620ef79bfbdf4416ba7a698426
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          p = Path('preparation/release-preparation/changes.patch')
+          data = p.read_bytes().replace(b'\n diff --git ', b'\ndiff --git ')
+          assert hashlib.sha256(data).hexdigest() == '008efd0ae3b1ab60b0fc4bd604b1f80a686a632c5c24406c1ef101dccd9cbab8'
+          p.write_bytes(data)
+          PY
+          git -C candidate apply --check ../preparation/release-preparation/changes.patch
+          git -C candidate apply ../preparation/release-preparation/changes.patch
+          mkdir -p candidate/tests
+          cp preparation/release-preparation/test_retention.py candidate/tests/test_retention.py
+          echo '44e5904d91bad3e1e5a1c8990f5fa2d3c61ad7694d6885282e5dfffa3075de46  candidate/VMBackup/vm_backup.sh' | sha256sum -c -
+          echo 'f0f21ab83c15ef4047abc85339163267837188ebe4bbe19ce3fc49fa7091e49a  candidate/tests/test_retention.py' | sha256sum -c -
+          echo 'dd709ab6fce1dc9062b9b630c55c7032052b04678d7e1ed6ed6e06f730ecadb5  candidate/VMBackup/vm_restore.sh' | sha256sum -c -
+      - name: Syntax, statische Fehler und 32 Regressionstests prüfen
+        run: |
+          set -euo pipefail
+          mkdir -p output
+          for file in candidate/VMBackup/vm_backup.sh candidate/VMBackup/vm_restore.sh candidate/VMBackup/vm_backup.conf; do bash -n "$file"; done
+          shellcheck --severity=error candidate/VMBackup/vm_backup.sh
+          git -C candidate diff --check
+          python3 candidate/tests/test_retention.py 2>&1 | tee output/tests.log
+      - name: Paket im bisherigen Aufbau erstellen und prüfen
+        run: |
+          set -euo pipefail
+          mkdir previous
+          gh release download v4.0 --repo "$GITHUB_REPOSITORY" --pattern UGREEN_VM_Backup_Restore_V4.0.zip --dir previous
+          echo 'dfea9655c03e23e655231991527836db6254a36d74e90ca94eccaec37b084eee  previous/UGREEN_VM_Backup_Restore_V4.0.zip' | sha256sum -c -
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib, zipfile
+          root = Path('candidate')
+          target = Path('output/UGREEN_VM_Backup_Restore_V4.0.1.zip')
+          with zipfile.ZipFile('previous/UGREEN_VM_Backup_Restore_V4.0.zip') as old:
+              assert old.testzip() is None
+              names = old.namelist()
+              assert names == ['VMBackup/', 'VMBackup/vm_backup.conf', 'VMBackup/vm_backup.sh', 'VMBackup/vm_restore.sh', 'UGREEN_VM_Backup_Restore_Handbuch_DE-EN_V4.0.pdf']
+              for name in ['VMBackup/vm_restore.sh', 'UGREEN_VM_Backup_Restore_Handbuch_DE-EN_V4.0.pdf']:
+                  assert old.read(name) == (root / name).read_bytes()
+              with zipfile.ZipFile(target, 'w', zipfile.ZIP_DEFLATED, compresslevel=9) as new:
+                  for name in names:
+                      new.write(root / name, name)
+          with zipfile.ZipFile(target) as new:
+              assert new.namelist() == names
+              assert new.testzip() is None
+              for name in names:
+                  if not name.endswith('/'):
+                      assert new.read(name) == (root / name).read_bytes()
+          digest = hashlib.sha256(target.read_bytes()).hexdigest()
+          print('RELEASE_ZIP_SHA256=' + digest)
+          print('PACKAGE_MEMBERS=' + repr(names))
+          Path('output/package-check.txt').write_text('SHA256=' + digest + '\n' + '\n'.join(names) + '\n')
+          PY
+      - name: Nur neuen Korrekturbranch bereitstellen, main nicht ändern
+        run: |
+          set -euo pipefail
+          test -z "$(git -C candidate ls-remote --heads origin refs/heads/fix/v4.0.1-release-safety)"
+          test -z "$(gh api --paginate "repos/$GITHUB_REPOSITORY/releases" --jq '.[] | select(.tag_name == "v4.0.1") | .id')"
+          git -C candidate add VMBackup/vm_backup.sh README.md CHANGELOG.md tests/test_retention.py
+          git -C candidate -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit --author='Roman Glos <29884757+Railsimulatornet@users.noreply.github.com>' -m 'Fix: Backups bei Fehlern erhalten und Release-Prüfungen ergänzen'
+          gh auth setup-git
+          git -C candidate push origin HEAD:refs/heads/fix/v4.0.1-release-safety
+          git -C candidate rev-parse HEAD | tee output/candidate-commit.txt
+      - name: Ausschließlich Release-Entwurf mit geprüftem ZIP anlegen
+        run: |
+          set -euo pipefail
+          target="$(cat output/candidate-commit.txt)"
+          gh release create v4.0.1 output/UGREEN_VM_Backup_Restore_V4.0.1.zip --repo "$GITHUB_REPOSITORY" --target "$target" --title 'UGREEN VM Backup & Restore v4.0.1' --notes-file preparation/release-preparation/release-notes.md --draft
+          gh release view v4.0.1 --repo "$GITHUB_REPOSITORY" --json name,url,tagName,isDraft,targetCommitish,assets | tee output/release.json
+      - name: Prüfprotokoll und Paket sichern
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: release-v4.0.1-tested-candidate
+          path: output/
+          retention-days: 7
+          if-no-files-found: error
