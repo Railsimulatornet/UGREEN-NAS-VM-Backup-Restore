@@ -1,5 +1,7 @@
 # 🚀 UGREEN NAS VM Backup & Restore
 
+[![Quality](https://github.com/Railsimulatornet/UGREEN-NAS-VM-Backup-Restore/actions/workflows/quality.yml/badge.svg?branch=main)](https://github.com/Railsimulatornet/UGREEN-NAS-VM-Backup-Restore/actions/workflows/quality.yml)
+
 ![VM Backup Pack](Screens/VMBackupPack.png)
 
 ## 📦 Überblick
@@ -18,7 +20,7 @@ Dieses Projekt stellt ein leistungsstarkes Backup- und Restore-System für virtu
 ## 📁 Repository Struktur
 
 ```
-v4/
+./
 ├── VMBackup/
 │   ├── vm_backup.sh
 │   ├── vm_restore.sh
