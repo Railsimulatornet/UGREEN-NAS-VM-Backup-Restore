@@ -666,6 +666,8 @@ shutdown_vm() {
   if [[ "$state" == *"running"* ]]; then
     log "VM läuft -> shutdown: $dom"
     run "virsh shutdown '$dom' >/dev/null 2>&1 || true"
+    # A plan cannot observe a shutdown it deliberately did not request.
+    [[ "$DRY_RUN" -eq 1 ]] && return 0
     local t=0
     while (( t < SHUTDOWN_TIMEOUT )); do
       state="$(get_dom_state "$dom")"

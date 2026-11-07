@@ -1,5 +1,7 @@
 ## Noch nicht veröffentlicht / Unreleased
 
+- DE: Der Restore-Testlauf wartet bei laufenden VMs nicht mehr auf ein Herunterfahren, das im Testlauf gar nicht ausgeführt wird.
+- EN: Restore dry runs no longer wait for a running VM to shut down when no shutdown is performed.
 - DE: Wiederherstellung gelöschter VMs an die aktuelle UGOS-Datenbankstruktur angepasst. Linux-Kennung und ursprüngliche VM-UUID bleiben erhalten; Konsolenzugang wird korrekt registriert.
 - EN: Recovery of deleted VMs supports the current UGOS database schema. Linux type and the original VM UUID are preserved, and console access is registered correctly.
 - DE: UEFI-Startdaten werden mitgesichert und wiederhergestellt. Ältere UEFI-Sicherungen ohne diese Daten werden beim vollständigen Neuaufbau mit einem klaren Hinweis abgelehnt.
