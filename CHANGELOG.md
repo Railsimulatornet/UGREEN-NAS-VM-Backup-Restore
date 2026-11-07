@@ -1,3 +1,10 @@
+## Noch nicht veröffentlicht / Unreleased
+
+- DE: Wiederherstellung gelöschter VMs an die aktuelle UGOS-Datenbankstruktur angepasst. Linux-Kennung und ursprüngliche VM-UUID bleiben erhalten; Konsolenzugang wird korrekt registriert.
+- EN: Recovery of deleted VMs supports the current UGOS database schema. Linux type and the original VM UUID are preserved, and console access is registered correctly.
+- DE: UEFI-Startdaten werden mitgesichert und wiederhergestellt. Ältere UEFI-Sicherungen ohne diese Daten werden beim vollständigen Neuaufbau mit einem klaren Hinweis abgelehnt.
+- EN: UEFI boot state is backed up and restored. Full recovery from older UEFI backups missing this state is rejected with a clear explanation.
+
 ## 4.0.2 - 2026-11-07
 
 - DE: Nur ausgewählte VMs stoppen; Stop- und Neustartfehler sicher behandeln. Pakete und Anleitung sind abgeglichen.

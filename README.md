@@ -15,7 +15,7 @@ Backup und Wiederherstellung für virtuelle Maschinen auf **UGREEN NAS mit KVM/l
 
 ### Funktionen
 
-- Sicherung der VM-Konfiguration und dateibasierten Datenträger.
+- Sicherung der VM-Konfiguration, dateibasierten Datenträger und UEFI-Startdaten (NVRAM).
 - Optionale Abschaltung laufender VMs vor dem Backup und anschließender Neustart.
 - Wiederherstellung einzelner VMs sowie Disaster Recovery mit Registrierung in der UGREEN VM-App.
 - Zeitgestempelte Backup-Ordner, chronologische Aufbewahrung und Logrotation.
@@ -26,7 +26,7 @@ Backup und Wiederherstellung für virtuelle Maschinen auf **UGREEN NAS mit KVM/l
 
 - UGREEN NAS mit eingerichteter VM-App, KVM/libvirt und Zugriff auf die VM-Daten.
 - SSH-Zugang mit ausreichenden Rechten; führe Backup und Restore in einer Root-Sitzung aus.
-- Bash, `virsh` und `rsync`; für die Registrierung in der UGREEN-Datenbank außerdem `sqlite3`.
+- Bash, Python 3, `virsh` und `rsync`; für die Registrierung in der UGREEN-Datenbank außerdem `sqlite3`.
 - Für SMTP-Mailversand Python 3 und passende Zugangsdaten; alternativ ein eingerichtetes `sendmail`.
 - Genügend Speicher am Backup-Ziel und ein geeignetes Wartungsfenster für VM-Unterbrechungen.
 
@@ -91,6 +91,10 @@ Wenn die VM in der VM-App beziehungsweise libvirt nicht mehr vorhanden ist, verw
 
 Der DR-Modus definiert die VM aus dem gesicherten XML, kopiert die Datenträger und registriert die VM in der UGREEN-Datenbank. Beachte anschließend die Hinweise des Skripts zur VM-Konsole und zum Freigabelink in UGOS.
 
+UEFI-VMs benötigen auch ihre gesicherten Startdaten (`nvram.fd`). Ältere Sicherungen ohne diese Datei reichen für eine vollständige Wiederherstellung nach dem Löschen einer UEFI-VM nicht aus. Die ursprüngliche libvirt-UUID bleibt bei der Wiederherstellung erhalten.
+
+Die UGOS-Verwaltungsliste vorhandener Schnappschüsse wird nicht mitgesichert. Ein im QCOW2 enthaltenes internes Abbild ersetzt diese Verwaltungseinträge nicht. Plane die Sicherung der VM daher nicht als Wiederherstellung ihrer gesamten UGOS-Schnappschussverwaltung ein.
+
 Weitere Optionen zeigt:
 
 ```bash
@@ -150,7 +154,7 @@ Backup and restore for virtual machines on **UGREEN NAS with KVM/libvirt**. The 
 
 ### Features
 
-- Backup of VM configuration and file-based disks.
+- Backup of VM configuration, file-based disks and UEFI boot state (NVRAM).
 - Optional shutdown of running VMs before backup and restart afterwards.
 - Restore of individual VMs and disaster recovery with registration in the UGREEN VM app.
 - Timestamped backup folders, chronological retention and log rotation.
@@ -161,7 +165,7 @@ Backup and restore for virtual machines on **UGREEN NAS with KVM/libvirt**. The 
 
 - UGREEN NAS with the VM app, KVM/libvirt and access to VM data.
 - SSH access with sufficient permissions; run backup and restore in a root session.
-- Bash, `virsh` and `rsync`; registration in the UGREEN database also requires `sqlite3`.
+- Bash, Python 3, `virsh` and `rsync`; registration in the UGREEN database also requires `sqlite3`.
 - Python 3 and valid credentials for SMTP email, or a configured `sendmail` as an alternative.
 - Enough storage at the backup destination and a suitable maintenance window for VM downtime.
 
@@ -225,6 +229,10 @@ If the VM no longer exists in the VM app or libvirt, use disaster recovery:
 ```
 
 DR mode defines the VM from its saved XML, copies the disks and registers the VM in the UGREEN database. Afterwards, follow the script's instructions for the VM console and share link in UGOS.
+
+UEFI VMs also need their saved boot state (`nvram.fd`). Older backups without this file are insufficient for a full recovery after deleting a UEFI VM. The original libvirt UUID is preserved during recovery.
+
+The UGOS management list of existing snapshots is not backed up. An internal snapshot stored in QCOW2 does not replace those management entries. Do not treat the VM backup as a recovery of its entire UGOS snapshot management state.
 
 To list further options:
 

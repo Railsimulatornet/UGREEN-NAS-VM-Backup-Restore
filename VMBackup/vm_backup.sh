@@ -109,6 +109,10 @@ translate_backup_msg() {
 
   case "$msg" in
     "=== VM-Backup gestartet ===") printf '=== VM backup started ==='; return ;;
+    "UEFI-Startdaten gesichert.") printf 'UEFI NVRAM saved.'; return ;;
+    "FEHLER: UEFI-Konfiguration konnte nicht gelesen werden: "*) printf 'ERROR: Cannot read UEFI state from %s' "${msg#FEHLER: UEFI-Konfiguration konnte nicht gelesen werden: }"; return ;;
+    "FEHLER: Erforderliche UEFI-Startdaten fehlen: "*) printf 'ERROR: Required UEFI NVRAM file is missing: %s' "${msg#FEHLER: Erforderliche UEFI-Startdaten fehlen: }"; return ;;
+    "FEHLER: UEFI-Startdaten konnten nicht gesichert werden: "*) printf 'ERROR: UEFI NVRAM backup failed: %s' "${msg#FEHLER: UEFI-Startdaten konnten nicht gesichert werden: }"; return ;;
     "=== VM-Backup abgeschlossen ===") printf '=== VM backup finished ==='; return ;;
     "Keine VMs ausgewählt oder gefunden – nichts zu tun.") printf 'No VMs selected or found - nothing to do.'; return ;;
     "Keine alten Backups zu löschen.") printf 'No old backups to delete.'; return ;;
@@ -298,6 +302,32 @@ start_vms() {
   done
 }
 
+backup_vm_nvram() {
+  local xml="$1" directory="$2" nvram
+  if ! nvram="$(python3 - "$xml" <<'PYNVRAM'
+import sys
+import xml.etree.ElementTree as ET
+node = ET.parse(sys.argv[1]).getroot().find('./os/nvram')
+if node is not None:
+    source = node.find('source')
+    print((node.text or '').strip() or (source.get('file', '') if source is not None else ''))
+PYNVRAM
+  )"; then
+    log "FEHLER: UEFI-Konfiguration konnte nicht gelesen werden: $xml"
+    return 1
+  fi
+  [[ -n "$nvram" ]] || return 0
+  if [[ ! -s "$nvram" ]]; then
+    log "FEHLER: Erforderliche UEFI-Startdaten fehlen: $nvram"
+    return 1
+  fi
+  if ! cp -a -- "$nvram" "$directory/nvram.fd"; then
+    log "FEHLER: UEFI-Startdaten konnten nicht gesichert werden: $nvram"
+    return 1
+  fi
+  log "UEFI-Startdaten gesichert."
+}
+
 backup_vm() {
   local vm="$1"
   local vm_safe vm_dir
@@ -310,6 +340,9 @@ backup_vm() {
 
   if virsh dumpxml "$vm" > "$vm_dir/${vm_safe}.xml" 2>>"$LOG_FILE"; then
     log "XML-Definition für $vm gespeichert."
+    if ! backup_vm_nvram "$vm_dir/${vm_safe}.xml" "$vm_dir"; then
+      BACKUP_OK=0
+    fi
   else
     log "FEHLER: XML-Definition für $vm konnte nicht gesichert werden."
     BACKUP_OK=0
