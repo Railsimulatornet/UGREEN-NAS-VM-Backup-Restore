@@ -127,7 +127,7 @@ for label, root_name in {'spaces': 'VM Backups', 'tabs': 'VM\tBackups', 'newline
 
 
 class BackupFlowTests(unittest.TestCase):
-    def check_flow(self, mode, language='de'):
+    def check_flow(self, mode, language='de', selected_only=None):
         with tempfile.TemporaryDirectory(prefix='vm-backup-flow-') as temporary:
             root = Path(temporary)
             app, backups, commands = root / 'app', root / 'backups', root / 'bin'
@@ -142,6 +142,8 @@ class BackupFlowTests(unittest.TestCase):
             settings = dict(BACKUP_ROOT=str(backups), LOG_FILE=str(backups / 'backup.log'), VM_DOMAINS='test-vm',
                             STOP_VMS='yes', RESTART_VMS='yes', MAIL_ON='never', MAIL_FORMAT='text', SCRIPT_LANG=language,
                             RETENTION_COUNT='1', LOG_MAX_SIZE_MB='0')
+            if selected_only is not None:
+                settings['STOP_ONLY_BACKUP_VMS'] = selected_only
             (app / 'vm_backup.conf').write_text(''.join(key + '=' + shlex.quote(value) + '\n' for key, value in settings.items()))
             stub = commands / 'virsh'
             stub.write_text('''#!/usr/bin/env bash
@@ -157,13 +159,20 @@ case "$1" in
     else
       printf 'file disk vda %s\\n' "$STUB_DISK"
     fi ;;
-  list) echo test-vm ;;
-  domstate) echo 'shut off' ;;
-  shutdown|start) exit 0 ;;
+  list) printf 'test-vm\nunrelated-vm\n' ;;
+  domstate) [[ "$STUB_MODE" == stop-fail ]] && { echo running; exit 0; }
+    [[ "$STUB_MODE" == shutdown-in-progress ]] && { echo 'in shutdown'; exit 0; }
+    echo 'shut off' ;;
+  start) [[ "$STUB_MODE" == start-fail ]] && exit 1; exit 0 ;;
+  shutdown) exit 0 ;;
+  destroy) exit 1 ;;
   *) exit 2 ;;
 esac
 ''')
             stub.chmod(0o755)
+            sleep = commands / 'sleep'
+            sleep.write_text('#!/usr/bin/env bash\nexit 0\n')
+            sleep.chmod(0o755)
             if mode == 'copy-fail':
                 cp = commands / 'cp'
                 cp.write_text('#!/usr/bin/env bash\n[[ "${1:-}" == --help ]] && exec /bin/cp --help\nexit 1\n')
@@ -173,7 +182,17 @@ esac
                        STUB_DISK=str(disk), STUB_CALLS=str(calls))
             result = subprocess.run(['bash', str(app / 'vm_backup.sh')], env=env, capture_output=True, text=True, timeout=15)
             self.assertIn('shutdown test-vm', calls.read_text())
-            self.assertIn('start test-vm', calls.read_text())
+            if selected_only == 'no':
+                self.assertIn('shutdown unrelated-vm', calls.read_text())
+                self.assertIn('start unrelated-vm', calls.read_text())
+            else:
+                self.assertNotIn('shutdown unrelated-vm', calls.read_text())
+                self.assertNotIn('start unrelated-vm', calls.read_text())
+            if mode in ('stop-fail', 'shutdown-in-progress'):
+                self.assertNotIn('domblklist', calls.read_text())
+                self.assertNotIn('start test-vm', calls.read_text())
+            else:
+                self.assertIn('start test-vm', calls.read_text())
             if mode == 'success':
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
                 self.assertFalse(old.exists())
@@ -186,7 +205,7 @@ esac
                 self.assertEqual((old / 'sentinel').read_text(), 'EXISTING BACKUP')
                 self.assertIn('automatic cleanup skipped' if language == 'en' else 'automatische Bereinigung übersprungen', result.stdout)
 
-for mode in ['success', 'xml-fail', 'list-fail', 'no-disks', 'missing-disk', 'copy-fail']:
+for mode in ['success', 'xml-fail', 'list-fail', 'no-disks', 'missing-disk', 'copy-fail', 'stop-fail', 'start-fail', 'shutdown-in-progress']:
     def case(self, mode=mode):
         self.check_flow(mode)
     setattr(BackupFlowTests, 'test_' + mode.replace('-', '_'), case)
@@ -194,6 +213,16 @@ for mode in ['success', 'copy-fail']:
     def case(self, mode=mode):
         self.check_flow(mode, 'en')
     setattr(BackupFlowTests, 'test_english_' + mode.replace('-', '_'), case)
+
+for mode in ['stop-fail', 'start-fail', 'shutdown-in-progress']:
+    def case(self, mode=mode):
+        self.check_flow(mode, selected_only='yes')
+    setattr(BackupFlowTests, 'test_explicit_selection_' + mode.replace('-', '_'), case)
+
+def explicit_all(self):
+    self.check_flow('success', selected_only='no')
+
+BackupFlowTests.test_explicit_all_running = explicit_all
 
 
 class RestoreTests(unittest.TestCase):

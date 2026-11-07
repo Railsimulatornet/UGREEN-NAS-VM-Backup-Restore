@@ -258,8 +258,8 @@ stop_vms() {
   for vm in "${RUNNING_VMS_BEFORE[@]}"; do
     retries=60   # 60 * 5s = 5 Minuten
     while [ $retries -gt 0 ]; do
-      state="$(virsh domstate "$vm" 2>/dev/null)"
-      if echo "$state" | grep -qi "shut"; then
+      state="$(LC_ALL=C virsh domstate "$vm" 2>/dev/null)"
+      if [[ "$state" == "shut off" ]]; then
         log "VM $(vm_display_name "$vm") ist nun aus (Status: $state)."
         break
       fi
@@ -269,13 +269,27 @@ stop_vms() {
     if [ $retries -le 0 ]; then
       log "VM $(vm_display_name "$vm") reagiert nicht – erzwinge Ausschalten."
       virsh destroy "$vm" >/dev/null 2>&1 || { log "FEHLER: VM $vm konnte nicht hart gestoppt werden."; BACKUP_OK=0; }
+      state="$(LC_ALL=C virsh domstate "$vm" 2>/dev/null)"
+      if [[ "$state" != "shut off" ]]; then
+        log "FEHLER: VM $vm ist nicht nachweislich ausgeschaltet. Backup wird abgebrochen."
+        BACKUP_OK=0
+      fi
     fi
   done
 }
 
 start_vms() {
-  local vm
+  local vm state
   for vm in "${RUNNING_VMS_BEFORE[@]}"; do
+    state="$(LC_ALL=C virsh domstate "$vm" 2>/dev/null)"
+    if [[ "$state" == running ]]; then
+      continue
+    fi
+    if [[ "$state" != "shut off" ]]; then
+      log "FEHLER: Status von VM $vm unklar; kein automatischer Start."
+      BACKUP_OK=0
+      continue
+    fi
     log "Starte VM $(vm_display_name "$vm") ..."
     if ! virsh start "$vm" >/dev/null 2>&1; then
       log "FEHLER: VM $vm konnte nicht gestartet werden."
@@ -778,7 +792,7 @@ log "Zu sichernde VMs: $display_list"
 # ----------------------------------------------------------------------
 
 # Neue Option: nur ausgewählte VMs stoppen oder alle?
-STOP_ONLY_BACKUP_VMS="${STOP_ONLY_BACKUP_VMS:-no}"
+STOP_ONLY_BACKUP_VMS="${STOP_ONLY_BACKUP_VMS:-yes}"
 
 RUNNING_VMS_BEFORE=()
 if [ "$STOP_VMS" = "yes" ]; then
@@ -820,15 +834,17 @@ if [ "$STOP_VMS" = "yes" ] && [ ${#RUNNING_VMS_BEFORE[@]} -gt 0 ]; then
   stop_vms
 fi
 
-for vm in "${VM_ARRAY[@]}"; do
-  backup_vm "$vm"
-done
-
-cleanup_old_backups
+if [ "$BACKUP_OK" -eq 1 ]; then
+  for vm in "${VM_ARRAY[@]}"; do
+    backup_vm "$vm"
+  done
+fi
 
 if [ "$RESTART_VMS" = "yes" ] && [ ${#RUNNING_VMS_BEFORE[@]} -gt 0 ]; then
   start_vms
 fi
+
+cleanup_old_backups
 
 # interner Status und sprachabhängiger Text für Mail/Log
 if [ "$BACKUP_OK" -eq 1 ]; then

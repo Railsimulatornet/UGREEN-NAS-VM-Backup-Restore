@@ -68,7 +68,7 @@ Die Skripte verwenden standardmäßig [vm_backup.conf](VMBackup/vm_backup.conf) 
 | `SMTP_SERVER`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`, `SMTP_TO` | Mailversand |
 | `MAIL_ON`, `MAIL_FORMAT` | `always`, `error` oder `never`; `html` oder `text` |
 
-Sind `VM_NAMES` und `VM_DOMAINS` leer, werden alle gefundenen VMs gesichert. Die Vorlage verwendet **`STOP_ONLY_BACKUP_VMS="no"`**: Bei aktiviertem Stoppen können auch laufende VMs außerhalb der Backup-Auswahl heruntergefahren werden. Setze den Wert auf `yes`, wenn du nur die ausgewählten VMs unterbrechen möchtest.
+Sind `VM_NAMES` und `VM_DOMAINS` leer, werden alle gefundenen VMs gesichert. Standard und Vorlage verwenden **`STOP_ONLY_BACKUP_VMS="yes"`**: Nur ausgewählte VMs werden unterbrochen. Bestehende Konfigurationen mit `no` behalten die ausdrückliche Abschaltung aller laufenden VMs bei. Ist das Ausschalten nicht bestätigt, wird kein Backup kopiert. Bei einem fehlgeschlagenen Neustart bleiben ältere Sicherungen erhalten. Ein abgebrochener Prozess oder NAS-Ausfall kann eine manuelle Kontrolle und einen Neustart der VMs erfordern.
 
 ### Wiederherstellung
 
@@ -203,7 +203,7 @@ By default, the scripts use [vm_backup.conf](VMBackup/vm_backup.conf) from their
 | `SMTP_SERVER`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`, `SMTP_TO` | Email delivery |
 | `MAIL_ON`, `MAIL_FORMAT` | `always`, `error` or `never`; `html` or `text` |
 
-If `VM_NAMES` and `VM_DOMAINS` are empty, all detected VMs are backed up. The template uses **`STOP_ONLY_BACKUP_VMS="no"`**: When shutdown is enabled, running VMs outside the backup selection may also be shut down. Set it to `yes` to interrupt selected VMs only.
+If `VM_NAMES` and `VM_DOMAINS` are empty, all detected VMs are backed up. The default and template use **`STOP_ONLY_BACKUP_VMS="yes"`**: Only selected VMs are interrupted. Existing configurations with `no` retain the explicit shutdown of all running VMs. No backup is copied unless shutdown is confirmed. A failed restart preserves older backups. An interrupted process or NAS outage may require manually checking and restarting VMs.
 
 ### Restore
 
