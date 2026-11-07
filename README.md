@@ -1,6 +1,6 @@
 # UGREEN NAS VM Backup & Restore
 
-Version: **4.0.2**
+Version: **4.0.3**
 
 [![Quality](https://github.com/Railsimulatornet/UGREEN-NAS-VM-Backup-Restore/actions/workflows/quality.yml/badge.svg?branch=main)](https://github.com/Railsimulatornet/UGREEN-NAS-VM-Backup-Restore/actions/workflows/quality.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
@@ -101,7 +101,7 @@ Weitere Optionen zeigt:
 ./vm_restore.sh --help
 ```
 
-Das [Handbuch](UGREEN_VM_Backup_Restore_Handbuch_DE-EN_V4.0.2.pdf) erklärt unter anderem Ziel-Volumes, Startverhalten und Disaster Recovery ausführlich.
+Das [Handbuch](UGREEN_VM_Backup_Restore_Handbuch_DE-EN_V4.0.3.pdf) erklärt unter anderem Ziel-Volumes, Startverhalten und Disaster Recovery ausführlich.
 
 ### Zeitplan
 
@@ -111,7 +111,7 @@ Das [Handbuch](UGREEN_VM_Backup_Restore_Handbuch_DE-EN_V4.0.2.pdf) erklärt unte
 0 3 * * * /volume1/VMBackup/vm_backup.sh >> /volume1/VMBackup/cron.log 2>&1
 ```
 
-### Aktualisierung auf v4.0.2
+### Aktualisierung auf v4.0.3
 
 **Behalte deine eigene `vm_backup.conf`.** Vergleiche neue Konfigurationsoptionen mit deiner Datei, statt sie durch die Vorlage zu ersetzen. Warte laufende Jobs ab, sichere beide Skripte und die aktive Konfiguration und ersetze die Skripte aus dem neuen Paket. Prüfe besonders `STOP_ONLY_BACKUP_VMS=yes`; eine bestehende Einstellung `no` wird nicht automatisch geändert.
 
@@ -121,7 +121,7 @@ Die automatische Bereinigung erfolgt nur nach erfolgreichem Backup. Bei einem fe
 
 Positive ganze Werte für `RETENTION_COUNT` legen die Zahl der aufzubewahrenden Läufe fest. `0` deaktiviert die Löschung. Ungültige Werte deaktivieren die Bereinigung mit einer Warnung.
 
-Das mitgelieferte Handbuch ist auf Stand **V4.0.2** aktualisiert. Seine Beispiele mit dem alten Datumsformat sind weiterhin gültig; für neue Backups verwendest du den tatsächlich angelegten Ordnernamen.
+Das mitgelieferte Handbuch ist auf Stand **V4.0.3** aktualisiert. Seine Beispiele mit dem alten Datumsformat sind weiterhin gültig; für neue Backups verwendest du den tatsächlich angelegten Ordnernamen.
 
 ### Projektstruktur und Dokumentation
 
@@ -130,7 +130,7 @@ Das mitgelieferte Handbuch ist auf Stand **V4.0.2** aktualisiert. Seine Beispiel
 | Backup-Skript | [VMBackup/vm_backup.sh](VMBackup/vm_backup.sh) |
 | Restore-Skript | [VMBackup/vm_restore.sh](VMBackup/vm_restore.sh) |
 | Konfigurationsvorlage | [VMBackup/vm_backup.conf](VMBackup/vm_backup.conf) |
-| Handbuch Deutsch/Englisch | [UGREEN_VM_Backup_Restore_Handbuch_DE-EN_V4.0.2.pdf](UGREEN_VM_Backup_Restore_Handbuch_DE-EN_V4.0.2.pdf) |
+| Handbuch Deutsch/Englisch | [UGREEN_VM_Backup_Restore_Handbuch_DE-EN_V4.0.3.pdf](UGREEN_VM_Backup_Restore_Handbuch_DE-EN_V4.0.3.pdf) |
 | Änderungen | [CHANGELOG.md](CHANGELOG.md) |
 | Nutzungshinweise | [DISCLAIMER.md](DISCLAIMER.md) |
 
@@ -240,7 +240,7 @@ To list further options:
 ./vm_restore.sh --help
 ```
 
-The [manual](UGREEN_VM_Backup_Restore_Handbuch_DE-EN_V4.0.2.pdf) explains target volumes, startup behaviour and disaster recovery in detail.
+The [manual](UGREEN_VM_Backup_Restore_Handbuch_DE-EN_V4.0.3.pdf) explains target volumes, startup behaviour and disaster recovery in detail.
 
 ### Schedule
 
@@ -250,7 +250,7 @@ Open the root session's schedule with `crontab -e`. Example for a daily run at 0
 0 3 * * * /volume1/VMBackup/vm_backup.sh >> /volume1/VMBackup/cron.log 2>&1
 ```
 
-### Updating to v4.0.2
+### Updating to v4.0.3
 
 **Keep your own `vm_backup.conf`.** Compare new configuration options with your file instead of replacing it with the template. Wait for running jobs, back up both scripts and the active configuration, then replace the scripts from the new package. Review `STOP_ONLY_BACKUP_VMS=yes`; an existing `no` setting is not changed automatically.
 
@@ -260,7 +260,7 @@ Automatic cleanup runs only after a successful backup. If a run fails, existing 
 
 Positive integer values for `RETENTION_COUNT` set the number of runs to keep. `0` disables deletion. Invalid values disable cleanup with a warning.
 
-The supplied manual is updated to **V4.0.2**. Its examples using the old date format are still valid; use the actual new folder name when restoring newer backups.
+The supplied manual is updated to **V4.0.3**. Its examples using the old date format are still valid; use the actual new folder name when restoring newer backups.
 
 ### Project structure and documentation
 
@@ -269,7 +269,7 @@ The supplied manual is updated to **V4.0.2**. Its examples using the old date fo
 | Backup script | [VMBackup/vm_backup.sh](VMBackup/vm_backup.sh) |
 | Restore script | [VMBackup/vm_restore.sh](VMBackup/vm_restore.sh) |
 | Configuration template | [VMBackup/vm_backup.conf](VMBackup/vm_backup.conf) |
-| German/English manual | [UGREEN_VM_Backup_Restore_Handbuch_DE-EN_V4.0.2.pdf](UGREEN_VM_Backup_Restore_Handbuch_DE-EN_V4.0.2.pdf) |
+| German/English manual | [UGREEN_VM_Backup_Restore_Handbuch_DE-EN_V4.0.3.pdf](UGREEN_VM_Backup_Restore_Handbuch_DE-EN_V4.0.3.pdf) |
 | Changes | [CHANGELOG.md](CHANGELOG.md) |
 | Usage notes | [DISCLAIMER.md](DISCLAIMER.md) |
 

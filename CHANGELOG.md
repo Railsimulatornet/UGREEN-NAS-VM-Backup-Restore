@@ -1,4 +1,4 @@
-## Noch nicht veröffentlicht / Unreleased
+## 4.0.3 - 2026-11-07
 
 - DE: Der Restore-Testlauf wartet bei laufenden VMs nicht mehr auf ein Herunterfahren, das im Testlauf gar nicht ausgeführt wird.
 - EN: Restore dry runs no longer wait for a running VM to shut down when no shutdown is performed.
