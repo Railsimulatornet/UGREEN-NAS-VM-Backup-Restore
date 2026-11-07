@@ -1,6 +1,6 @@
 # UGREEN NAS VM Backup & Restore
 
-Version: **4.0.2**
+Version: **4.0.3**
 
 [![Quality](https://github.com/Railsimulatornet/UGREEN-NAS-VM-Backup-Restore/actions/workflows/quality.yml/badge.svg?branch=main)](https://github.com/Railsimulatornet/UGREEN-NAS-VM-Backup-Restore/actions/workflows/quality.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
@@ -15,7 +15,7 @@ Backup und Wiederherstellung für virtuelle Maschinen auf **UGREEN NAS mit KVM/l
 
 ### Funktionen
 
-- Sicherung der VM-Konfiguration und dateibasierten Datenträger.
+- Sicherung der VM-Konfiguration, dateibasierten Datenträger und UEFI-Startdaten (NVRAM).
 - Optionale Abschaltung laufender VMs vor dem Backup und anschließender Neustart.
 - Wiederherstellung einzelner VMs sowie Disaster Recovery mit Registrierung in der UGREEN VM-App.
 - Zeitgestempelte Backup-Ordner, chronologische Aufbewahrung und Logrotation.
@@ -26,7 +26,7 @@ Backup und Wiederherstellung für virtuelle Maschinen auf **UGREEN NAS mit KVM/l
 
 - UGREEN NAS mit eingerichteter VM-App, KVM/libvirt und Zugriff auf die VM-Daten.
 - SSH-Zugang mit ausreichenden Rechten; führe Backup und Restore in einer Root-Sitzung aus.
-- Bash, `virsh` und `rsync`; für die Registrierung in der UGREEN-Datenbank außerdem `sqlite3`.
+- Bash, Python 3, `virsh` und `rsync`; für die Registrierung in der UGREEN-Datenbank außerdem `sqlite3`.
 - Für SMTP-Mailversand Python 3 und passende Zugangsdaten; alternativ ein eingerichtetes `sendmail`.
 - Genügend Speicher am Backup-Ziel und ein geeignetes Wartungsfenster für VM-Unterbrechungen.
 
@@ -91,13 +91,17 @@ Wenn die VM in der VM-App beziehungsweise libvirt nicht mehr vorhanden ist, verw
 
 Der DR-Modus definiert die VM aus dem gesicherten XML, kopiert die Datenträger und registriert die VM in der UGREEN-Datenbank. Beachte anschließend die Hinweise des Skripts zur VM-Konsole und zum Freigabelink in UGOS.
 
+UEFI-VMs benötigen auch ihre gesicherten Startdaten (`nvram.fd`). Ältere Sicherungen ohne diese Datei reichen für eine vollständige Wiederherstellung nach dem Löschen einer UEFI-VM nicht aus. Die ursprüngliche libvirt-UUID bleibt bei der Wiederherstellung erhalten.
+
+Die UGOS-Verwaltungsliste vorhandener Schnappschüsse wird nicht mitgesichert. Ein im QCOW2 enthaltenes internes Abbild ersetzt diese Verwaltungseinträge nicht. Plane die Sicherung der VM daher nicht als Wiederherstellung ihrer gesamten UGOS-Schnappschussverwaltung ein.
+
 Weitere Optionen zeigt:
 
 ```bash
 ./vm_restore.sh --help
 ```
 
-Das [Handbuch](UGREEN_VM_Backup_Restore_Handbuch_DE-EN_V4.0.2.pdf) erklärt unter anderem Ziel-Volumes, Startverhalten und Disaster Recovery ausführlich.
+Das [Handbuch](UGREEN_VM_Backup_Restore_Handbuch_DE-EN_V4.0.3.pdf) erklärt unter anderem Ziel-Volumes, Startverhalten und Disaster Recovery ausführlich.
 
 ### Zeitplan
 
@@ -107,7 +111,7 @@ Das [Handbuch](UGREEN_VM_Backup_Restore_Handbuch_DE-EN_V4.0.2.pdf) erklärt unte
 0 3 * * * /volume1/VMBackup/vm_backup.sh >> /volume1/VMBackup/cron.log 2>&1
 ```
 
-### Aktualisierung auf v4.0.2
+### Aktualisierung auf v4.0.3
 
 **Behalte deine eigene `vm_backup.conf`.** Vergleiche neue Konfigurationsoptionen mit deiner Datei, statt sie durch die Vorlage zu ersetzen. Warte laufende Jobs ab, sichere beide Skripte und die aktive Konfiguration und ersetze die Skripte aus dem neuen Paket. Prüfe besonders `STOP_ONLY_BACKUP_VMS=yes`; eine bestehende Einstellung `no` wird nicht automatisch geändert.
 
@@ -117,7 +121,7 @@ Die automatische Bereinigung erfolgt nur nach erfolgreichem Backup. Bei einem fe
 
 Positive ganze Werte für `RETENTION_COUNT` legen die Zahl der aufzubewahrenden Läufe fest. `0` deaktiviert die Löschung. Ungültige Werte deaktivieren die Bereinigung mit einer Warnung.
 
-Das mitgelieferte Handbuch ist auf Stand **V4.0.2** aktualisiert. Seine Beispiele mit dem alten Datumsformat sind weiterhin gültig; für neue Backups verwendest du den tatsächlich angelegten Ordnernamen.
+Das mitgelieferte Handbuch ist auf Stand **V4.0.3** aktualisiert. Seine Beispiele mit dem alten Datumsformat sind weiterhin gültig; für neue Backups verwendest du den tatsächlich angelegten Ordnernamen.
 
 ### Projektstruktur und Dokumentation
 
@@ -126,7 +130,7 @@ Das mitgelieferte Handbuch ist auf Stand **V4.0.2** aktualisiert. Seine Beispiel
 | Backup-Skript | [VMBackup/vm_backup.sh](VMBackup/vm_backup.sh) |
 | Restore-Skript | [VMBackup/vm_restore.sh](VMBackup/vm_restore.sh) |
 | Konfigurationsvorlage | [VMBackup/vm_backup.conf](VMBackup/vm_backup.conf) |
-| Handbuch Deutsch/Englisch | [UGREEN_VM_Backup_Restore_Handbuch_DE-EN_V4.0.2.pdf](UGREEN_VM_Backup_Restore_Handbuch_DE-EN_V4.0.2.pdf) |
+| Handbuch Deutsch/Englisch | [UGREEN_VM_Backup_Restore_Handbuch_DE-EN_V4.0.3.pdf](UGREEN_VM_Backup_Restore_Handbuch_DE-EN_V4.0.3.pdf) |
 | Änderungen | [CHANGELOG.md](CHANGELOG.md) |
 | Nutzungshinweise | [DISCLAIMER.md](DISCLAIMER.md) |
 
@@ -150,7 +154,7 @@ Backup and restore for virtual machines on **UGREEN NAS with KVM/libvirt**. The 
 
 ### Features
 
-- Backup of VM configuration and file-based disks.
+- Backup of VM configuration, file-based disks and UEFI boot state (NVRAM).
 - Optional shutdown of running VMs before backup and restart afterwards.
 - Restore of individual VMs and disaster recovery with registration in the UGREEN VM app.
 - Timestamped backup folders, chronological retention and log rotation.
@@ -161,7 +165,7 @@ Backup and restore for virtual machines on **UGREEN NAS with KVM/libvirt**. The 
 
 - UGREEN NAS with the VM app, KVM/libvirt and access to VM data.
 - SSH access with sufficient permissions; run backup and restore in a root session.
-- Bash, `virsh` and `rsync`; registration in the UGREEN database also requires `sqlite3`.
+- Bash, Python 3, `virsh` and `rsync`; registration in the UGREEN database also requires `sqlite3`.
 - Python 3 and valid credentials for SMTP email, or a configured `sendmail` as an alternative.
 - Enough storage at the backup destination and a suitable maintenance window for VM downtime.
 
@@ -226,13 +230,17 @@ If the VM no longer exists in the VM app or libvirt, use disaster recovery:
 
 DR mode defines the VM from its saved XML, copies the disks and registers the VM in the UGREEN database. Afterwards, follow the script's instructions for the VM console and share link in UGOS.
 
+UEFI VMs also need their saved boot state (`nvram.fd`). Older backups without this file are insufficient for a full recovery after deleting a UEFI VM. The original libvirt UUID is preserved during recovery.
+
+The UGOS management list of existing snapshots is not backed up. An internal snapshot stored in QCOW2 does not replace those management entries. Do not treat the VM backup as a recovery of its entire UGOS snapshot management state.
+
 To list further options:
 
 ```bash
 ./vm_restore.sh --help
 ```
 
-The [manual](UGREEN_VM_Backup_Restore_Handbuch_DE-EN_V4.0.2.pdf) explains target volumes, startup behaviour and disaster recovery in detail.
+The [manual](UGREEN_VM_Backup_Restore_Handbuch_DE-EN_V4.0.3.pdf) explains target volumes, startup behaviour and disaster recovery in detail.
 
 ### Schedule
 
@@ -242,7 +250,7 @@ Open the root session's schedule with `crontab -e`. Example for a daily run at 0
 0 3 * * * /volume1/VMBackup/vm_backup.sh >> /volume1/VMBackup/cron.log 2>&1
 ```
 
-### Updating to v4.0.2
+### Updating to v4.0.3
 
 **Keep your own `vm_backup.conf`.** Compare new configuration options with your file instead of replacing it with the template. Wait for running jobs, back up both scripts and the active configuration, then replace the scripts from the new package. Review `STOP_ONLY_BACKUP_VMS=yes`; an existing `no` setting is not changed automatically.
 
@@ -252,7 +260,7 @@ Automatic cleanup runs only after a successful backup. If a run fails, existing 
 
 Positive integer values for `RETENTION_COUNT` set the number of runs to keep. `0` disables deletion. Invalid values disable cleanup with a warning.
 
-The supplied manual is updated to **V4.0.2**. Its examples using the old date format are still valid; use the actual new folder name when restoring newer backups.
+The supplied manual is updated to **V4.0.3**. Its examples using the old date format are still valid; use the actual new folder name when restoring newer backups.
 
 ### Project structure and documentation
 
@@ -261,7 +269,7 @@ The supplied manual is updated to **V4.0.2**. Its examples using the old date fo
 | Backup script | [VMBackup/vm_backup.sh](VMBackup/vm_backup.sh) |
 | Restore script | [VMBackup/vm_restore.sh](VMBackup/vm_restore.sh) |
 | Configuration template | [VMBackup/vm_backup.conf](VMBackup/vm_backup.conf) |
-| German/English manual | [UGREEN_VM_Backup_Restore_Handbuch_DE-EN_V4.0.2.pdf](UGREEN_VM_Backup_Restore_Handbuch_DE-EN_V4.0.2.pdf) |
+| German/English manual | [UGREEN_VM_Backup_Restore_Handbuch_DE-EN_V4.0.3.pdf](UGREEN_VM_Backup_Restore_Handbuch_DE-EN_V4.0.3.pdf) |
 | Changes | [CHANGELOG.md](CHANGELOG.md) |
 | Usage notes | [DISCLAIMER.md](DISCLAIMER.md) |
 

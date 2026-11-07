@@ -1,14 +1,14 @@
 {
-  "version": "4.0.2",
-  "tag": "v4.0.2",
-  "archive": "UGREEN_VM_Backup_Restore_V4.0.2.zip",
+  "version": "4.0.3",
+  "tag": "v4.0.3",
+  "archive": "UGREEN_VM_Backup_Restore_V4.0.3.zip",
   "files": [
     "VMBackup/vm_backup.conf",
     "VMBackup/vm_backup.sh",
     "VMBackup/vm_restore.sh",
     "README.md",
     "LICENSE",
-    "UGREEN_VM_Backup_Restore_Handbuch_DE-EN_V4.0.2.pdf",
+    "UGREEN_VM_Backup_Restore_Handbuch_DE-EN_V4.0.3.pdf",
     "CHANGELOG.md"
   ],
   "version_markers": {
@@ -22,6 +22,6 @@
     "VM_RESTORE_SOURCE": "VMBackup/vm_restore.sh"
   },
   "separate_assets": [
-    "UGREEN_VM_Backup_Restore_Handbuch_DE-EN_V4.0.2.pdf"
+    "UGREEN_VM_Backup_Restore_Handbuch_DE-EN_V4.0.3.pdf"
   ]
 }

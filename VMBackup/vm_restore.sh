@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# vm_restore.sh - UGREEN NAS VM Restore incl. Disaster Recovery (DR) v4.0.2
+# vm_restore.sh - UGREEN NAS VM Restore incl. Disaster Recovery (DR) v4.0.3
 # Copyright (c) 2026 Roman Glos for Ugreen NAS Community
 # For UGREEN VM App / com.ugreen.kvm
 # License: use at your own risk
@@ -63,6 +63,8 @@ translate_restore_msg() {
     "Starte vm_restore.sh") printf 'Starting vm_restore.sh'; return ;;
     "Restore: qcow2 zurückspielen") printf 'Restore: restoring qcow2 disks'; return ;;
     "Restore: qcow2 fertig.") printf 'Restore: qcow2 restore finished.'; return ;;
+    "DRY-RUN: Gesicherte UEFI-Startdaten nach dem Stoppen der VM wiederherstellen.") printf 'DRY-RUN: Restore saved UEFI NVRAM after shutting down the VM.'; return ;;
+    "Gesicherte UEFI-Startdaten passen zu keinem NVRAM-Gerät dieser VM.") printf 'Saved UEFI state has no matching NVRAM device in this VM.'; return ;;
     "DB-Register: fertig.") printf 'DB registration: finished.'; return ;;
     "VNC-Guard: beendet.") printf 'VNC guard: finished.'; return ;;
     "DB: virtual_machine fehlt -> Insert") printf 'DB: virtual_machine missing -> insert'; return ;;
@@ -664,6 +666,8 @@ shutdown_vm() {
   if [[ "$state" == *"running"* ]]; then
     log "VM läuft -> shutdown: $dom"
     run "virsh shutdown '$dom' >/dev/null 2>&1 || true"
+    # A plan cannot observe a shutdown it deliberately did not request.
+    [[ "$DRY_RUN" -eq 1 ]] && return 0
     local t=0
     while (( t < SHUTDOWN_TIMEOUT )); do
       state="$(get_dom_state "$dom")"
@@ -776,8 +780,63 @@ determine_kvm_root() {
 }
 
 # -----------------------------
-# DR: VM aus Backup neu definieren
+# DR: XML and firmware state from the same stopped-VM backup.
 # -----------------------------
+prepare_dr_xml() {
+  local xml="$1" output="$2" target_dir="$3"
+  python3 - "$xml" "$output" "$target_dir" "$VM_BACKUP_DIR/nvram.fd" "$DRY_RUN" "${SCRIPT_LANG:-de}" <<'PYDRXML'
+from pathlib import Path
+import shutil
+import sys
+import xml.etree.ElementTree as ET
+xml, output, target_dir, firmware, dry, language = sys.argv[1:]
+tree = ET.parse(xml)
+root = tree.getroot()
+for disk in root.findall('./devices/disk'):
+    source = disk.find('source')
+    if disk.get('device') == 'disk' and source is not None and source.get('file'):
+        source.set('file', str(Path(target_dir) / Path(source.get('file')).name))
+nvram = root.find('./os/nvram')
+if nvram is not None:
+    saved = Path(firmware)
+    if not saved.is_file() or not saved.stat().st_size:
+        raise SystemExit('Required UEFI NVRAM is missing from this backup; a full UEFI recovery is not possible.' if language == 'en' else 'Die erforderlichen UEFI-Startdaten fehlen in dieser Sicherung; eine vollständige UEFI-Wiederherstellung ist nicht möglich.')
+    destination = Path(target_dir) / 'nvram.fd'
+    source = nvram.find('source')
+    if source is not None:
+        source.set('file', str(destination))
+    else:
+        nvram.text = str(destination)
+    if dry != '1':
+        shutil.copy2(saved, destination)
+# Preserve the original libvirt UUID and the ISO path; neither is a disk-copy target.
+if dry != '1':
+    tree.write(output, encoding='unicode')
+PYDRXML
+}
+
+restore_existing_nvram() {
+  [[ -s "$VM_BACKUP_DIR/nvram.fd" ]] || return 0
+  local current_xml="$TMP_WORK_DIR/${DOMAIN_UUID}.current.xml" destination
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    log "DRY-RUN: Gesicherte UEFI-Startdaten nach dem Stoppen der VM wiederherstellen."
+    return 0
+  fi
+  mkdir -p "$TMP_WORK_DIR"
+  virsh dumpxml "${DOMAIN_NAME:-$DOMAIN_UUID}" > "$current_xml"
+  destination="$(python3 - "$current_xml" <<'PYCURRENTNVRAM'
+import sys
+import xml.etree.ElementTree as ET
+node = ET.parse(sys.argv[1]).getroot().find('./os/nvram')
+if node is not None:
+    source = node.find('source')
+    print((node.text or '').strip() or (source.get('file', '') if source is not None else ''))
+PYCURRENTNVRAM
+  )"
+  [[ -n "$destination" ]] || die "Gesicherte UEFI-Startdaten passen zu keinem NVRAM-Gerät dieser VM."
+  run "cp -a '$VM_BACKUP_DIR/nvram.fd' '$destination'"
+}
+
 dr_define_from_backup() {
   local uuid="$1"
   local xml="$2"
@@ -814,23 +873,7 @@ dr_define_from_backup() {
   local tmpdir="$TMP_WORK_DIR"
   run "mkdir -p '$tmpdir'"
   local tmpxml="$tmpdir/${uuid}.restore.xml"
-  run "cp -a '$xml' '$tmpxml'"
-
-  # UUID im XML setzen (falls vorhanden)
-  if grep -q "<uuid>" "$tmpxml" 2>/dev/null; then
-    run "sed -i -E 's|<uuid>[^<]+</uuid>|<uuid>${uuid}</uuid>|' '$tmpxml'"
-  fi
-
-  # Disk-Pfade ersetzen (nach basename)
-  local line path base newpath
-  while read -r path; do
-    [[ -n "$path" ]] || continue
-    base="$(basename "$path")"
-    newpath="$target_dir/$base"
-    # replace exakt dieses path
-    run "sed -i -E \"s|<source file='${path//\//\\/}'/>|<source file='${newpath//\//\\/}'/>|g\" '$tmpxml' || true"
-    run "sed -i -E \"s|<source file=\\\"${path//\//\\/}\\\"/>|<source file=\\\"${newpath//\//\\/}\\\"/>|g\" '$tmpxml' || true"
-  done < <(awk -F"'" '/<source file=/{print $2}' "$tmpxml" 2>/dev/null || true)
+  prepare_dr_xml "$xml" "$tmpxml" "$target_dir"
 
   # qcow2 kopieren
   log "DR: Kopiere qcow2 nach $target_dir"
@@ -951,10 +994,10 @@ sqlite_insert_link_row() {
   [[ -n "$cols" ]] || return 1
 
   # nur bekannte Spalten befüllen, Rest Defaults überlassen
-  local col_list=() val_list=()
+  local col_list=() val_list=() has_vir_name=0
   while read -r c; do
     case "$c" in
-      virName) col_list+=("virName"); val_list+=("'$vm'");;
+      virName) col_list+=("virName"); val_list+=("'$vm'"); has_vir_name=1;;
       passwd) col_list+=("passwd"); val_list+=("''");;
       vncPort) col_list+=("vncPort"); val_list+=("0");;
       noVncPort) col_list+=("noVncPort"); val_list+=("0");;
@@ -966,7 +1009,7 @@ sqlite_insert_link_row() {
   done <<< "$cols"
 
   # virName ist Pflicht
-  if [[ "${#col_list[@]}" -eq 0 ]] || [[ ! " ${col_list[*]} " =~ " virName " ]]; then
+  if [[ "${#col_list[@]}" -eq 0 || "$has_vir_name" -ne 1 ]]; then
     return 1
   fi
 
@@ -1173,7 +1216,7 @@ vnc_guard() {
 
     # Trace nur bei Änderung (sonst wird das Log riesig)
     if [[ "$TRACE_LINK" -eq 1 && "$state" != "$last_state" ]]; then
-      log "VNC-Guard: state=${state}"
+      log "VNC-Guard: state=|[redacted]|${vnc}|${nvnc}|${dis}|${ty}|${aklen}|"
       last_state="$state"
     fi
 
@@ -1299,18 +1342,25 @@ fi
       fi
     else
       log "DB: virtual_machine fehlt -> Insert"
-      local cols
-      cols="$(sqlite_col_count "$db" "virtual_machine")"
       local now
       now="$(date +%s)"
-      if [[ "$cols" == "8" ]]; then
-        # position-based (wie im Community-Test)
-        # (id, virName, displayName, osType, systemVersion, status, <0>, <epoch>)
-        run "sqlite3 '$db' \"INSERT INTO virtual_machine VALUES (NULL,'$DOMAIN_UUID','$(printf "%s" "$display_name" | sed "s/'/''/g")','$os_type','$(printf "%s" "$sys_ver" | sed "s/'/''/g")','createSuccess',0,$now);\""
-      else
-        # best-effort named insert
-        run "sqlite3 '$db' \"INSERT INTO virtual_machine(virName,displayName,osType,systemVersion,status) VALUES('$DOMAIN_UUID','$(printf "%s" "$display_name" | sed "s/'/''/g")','$os_type','$(printf "%s" "$sys_ver" | sed "s/'/''/g")','createSuccess');\""
+      # Current UGOS uses processState; older schemas use status.
+      # Insert by supported names rather than the column count or order.
+      local vm_cols=(virName displayName osType systemVersion)
+      local vm_vals=("'$DOMAIN_UUID'" "'$(printf '%s' "$display_name" | sed "s/'/''/g")'" "'$os_type'" "'$(printf '%s' "$sys_ver" | sed "s/'/''/g")'")
+      local state_col
+      for state_col in processState status; do
+        if sqlite_col_exists "$db" virtual_machine "$state_col"; then
+          vm_cols+=("$state_col"); vm_vals+=("'createSuccess'")
+        fi
+      done
+      if sqlite_col_exists "$db" virtual_machine autoStart; then
+        vm_cols+=(autoStart); vm_vals+=(0)
       fi
+      if sqlite_col_exists "$db" virtual_machine create_time; then
+        vm_cols+=(create_time); vm_vals+=("$now")
+      fi
+      run "sqlite3 '$db' \"INSERT INTO virtual_machine($(IFS=,; echo "${vm_cols[*]}")) VALUES($(IFS=,; echo "${vm_vals[*]}"));\""
     fi
   else
     log "WARN: Tabelle virtual_machine nicht gefunden."
@@ -1324,20 +1374,21 @@ fi
       log "DB: virtual_machine_bind existiert bereits."
     else
       log "DB: Lege virtual_machine_bind an."
-      local bcols
-      bcols="$(sqlite_col_count "$db" "virtual_machine_bind")"
-      if [[ "$bcols" == "5" ]]; then
-        run "sqlite3 '$db' \"INSERT INTO virtual_machine_bind VALUES(NULL,'$storage_uuid','$vol_name','$vol_root','$DOMAIN_UUID');\""
+      local bind_path_col
+      if sqlite_col_exists "$db" virtual_machine_bind path; then
+        bind_path_col=path
+      elif sqlite_col_exists "$db" virtual_machine_bind storagePath; then
+        bind_path_col=storagePath
       else
-        # best effort
-        run "sqlite3 '$db' \"INSERT INTO virtual_machine_bind(storageUUID,storageName,storagePath,virName) VALUES('$storage_uuid','$vol_name','$vol_root','$DOMAIN_UUID');\""
+        die "virtual_machine_bind has no supported storage path column"
       fi
+      run "sqlite3 '$db' \"INSERT INTO virtual_machine_bind(storageUUID,storageName,$bind_path_col,virName) VALUES('$storage_uuid','$vol_name','$vol_root','$DOMAIN_UUID');\""
     fi
   fi
 
   # Fix B) Systemtyp / Version wieder herstellen (damit die UI sauber anzeigt)
   if [[ "$RESET_LINK" -eq 1 ]] && sqlite_table_exists "$db" "virtual_machine"; then
-    local norm_os="${OS_TYPE_OVERRIDE:-windows}"
+    local norm_os="${OS_TYPE_OVERRIDE:-$os_type}"
     local norm_sys="${SYSTEM_VERSION_OVERRIDE:-}"
     local sets_vm=()
     sqlite_col_exists "$db" "virtual_machine" "osType" && sets_vm+=("osType='$norm_os'")
@@ -1526,6 +1577,7 @@ for bfile in "${BACKUP_DISKS[@]}"; do
 done
 
 log "Restore: qcow2 fertig."
+restore_existing_nvram
 
 # DB Registrierung optional (bei DR default)
 if [[ "$REGISTER_DB" -eq 1 ]]; then
