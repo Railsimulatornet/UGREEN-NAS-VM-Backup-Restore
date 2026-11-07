@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# vm_backup.sh - Backup der KVM/UGREEN-VMs v4.0.1
+# vm_backup.sh - Backup der KVM/UGREEN-VMs v4.0.2
 # Copyright (c) 2026 Roman Glos for Ugreen NAS Community
 #
 # - sichert ausgewählte oder alle VMs per virsh
@@ -11,7 +11,7 @@
 # Konfiguration liegt standardmäßig in: ./vm_backup.conf
 
 SCRIPT_NAME="vm_backup.sh"
-SCRIPT_VERSION="v4.0.1"
+SCRIPT_VERSION="v4.0.2"
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG_FILE="${SCRIPT_DIR}/vm_backup.conf"

@@ -1,5 +1,7 @@
 # UGREEN NAS VM Backup & Restore
 
+Version: **4.0.2**
+
 [![Quality](https://github.com/Railsimulatornet/UGREEN-NAS-VM-Backup-Restore/actions/workflows/quality.yml/badge.svg?branch=main)](https://github.com/Railsimulatornet/UGREEN-NAS-VM-Backup-Restore/actions/workflows/quality.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
@@ -95,7 +97,7 @@ Weitere Optionen zeigt:
 ./vm_restore.sh --help
 ```
 
-Das [Handbuch](UGREEN_VM_Backup_Restore_Handbuch_DE-EN_V4.0.pdf) erklärt unter anderem Ziel-Volumes, Startverhalten und Disaster Recovery ausführlich.
+Das [Handbuch](UGREEN_VM_Backup_Restore_Handbuch_DE-EN_V4.0.2.pdf) erklärt unter anderem Ziel-Volumes, Startverhalten und Disaster Recovery ausführlich.
 
 ### Zeitplan
 
@@ -105,9 +107,9 @@ Das [Handbuch](UGREEN_VM_Backup_Restore_Handbuch_DE-EN_V4.0.pdf) erklärt unter 
 0 3 * * * /volume1/VMBackup/vm_backup.sh >> /volume1/VMBackup/cron.log 2>&1
 ```
 
-### Aktualisierung und v4.0.1
+### Aktualisierung auf v4.0.2
 
-**Behalte deine eigene `vm_backup.conf`.** Vergleiche neue Konfigurationsoptionen mit deiner Datei, statt sie durch die Vorlage zu ersetzen. Für das Update von v4.0 auf v4.0.1 genügt der Austausch von `VMBackup/vm_backup.sh`; `vm_restore.sh` bleibt auf dem bisherigen Stand.
+**Behalte deine eigene `vm_backup.conf`.** Vergleiche neue Konfigurationsoptionen mit deiner Datei, statt sie durch die Vorlage zu ersetzen. Warte laufende Jobs ab, sichere beide Skripte und die aktive Konfiguration und ersetze die Skripte aus dem neuen Paket. Prüfe besonders `STOP_ONLY_BACKUP_VMS=yes`; eine bestehende Einstellung `no` wird nicht automatisch geändert.
 
 Neue Sicherungen verwenden `JJJJ_MM_TT_HH-MM-SS`, zum Beispiel `2026_09_28_21-30-00`. Bestehende Sicherungen im Format `TT_MM_JJJJ_HH-MM-SS` bleiben beim Restore und bei der chronologischen Aufbewahrung verwendbar. Du musst sie nicht umbenennen.
 
@@ -115,7 +117,7 @@ Die automatische Bereinigung erfolgt nur nach erfolgreichem Backup. Bei einem fe
 
 Positive ganze Werte für `RETENTION_COUNT` legen die Zahl der aufzubewahrenden Läufe fest. `0` deaktiviert die Löschung. Ungültige Werte deaktivieren die Bereinigung mit einer Warnung.
 
-Das mitgelieferte Handbuch bleibt auf Stand **V4.0**. Seine Beispiele mit dem alten Datumsformat sind weiterhin gültig; für neue Backups verwendest du den tatsächlich angelegten Ordnernamen.
+Das mitgelieferte Handbuch ist auf Stand **V4.0.2** aktualisiert. Seine Beispiele mit dem alten Datumsformat sind weiterhin gültig; für neue Backups verwendest du den tatsächlich angelegten Ordnernamen.
 
 ### Projektstruktur und Dokumentation
 
@@ -124,7 +126,7 @@ Das mitgelieferte Handbuch bleibt auf Stand **V4.0**. Seine Beispiele mit dem al
 | Backup-Skript | [VMBackup/vm_backup.sh](VMBackup/vm_backup.sh) |
 | Restore-Skript | [VMBackup/vm_restore.sh](VMBackup/vm_restore.sh) |
 | Konfigurationsvorlage | [VMBackup/vm_backup.conf](VMBackup/vm_backup.conf) |
-| Handbuch Deutsch/Englisch | [UGREEN_VM_Backup_Restore_Handbuch_DE-EN_V4.0.pdf](UGREEN_VM_Backup_Restore_Handbuch_DE-EN_V4.0.pdf) |
+| Handbuch Deutsch/Englisch | [UGREEN_VM_Backup_Restore_Handbuch_DE-EN_V4.0.2.pdf](UGREEN_VM_Backup_Restore_Handbuch_DE-EN_V4.0.2.pdf) |
 | Änderungen | [CHANGELOG.md](CHANGELOG.md) |
 | Nutzungshinweise | [DISCLAIMER.md](DISCLAIMER.md) |
 
@@ -230,7 +232,7 @@ To list further options:
 ./vm_restore.sh --help
 ```
 
-The [manual](UGREEN_VM_Backup_Restore_Handbuch_DE-EN_V4.0.pdf) explains target volumes, startup behaviour and disaster recovery in detail.
+The [manual](UGREEN_VM_Backup_Restore_Handbuch_DE-EN_V4.0.2.pdf) explains target volumes, startup behaviour and disaster recovery in detail.
 
 ### Schedule
 
@@ -240,9 +242,9 @@ Open the root session's schedule with `crontab -e`. Example for a daily run at 0
 0 3 * * * /volume1/VMBackup/vm_backup.sh >> /volume1/VMBackup/cron.log 2>&1
 ```
 
-### Updates and v4.0.1
+### Updating to v4.0.2
 
-**Keep your own `vm_backup.conf`.** Compare new configuration options with your file instead of replacing it with the template. Updating from v4.0 to v4.0.1 only requires replacing `VMBackup/vm_backup.sh`; `vm_restore.sh` remains at its previous version.
+**Keep your own `vm_backup.conf`.** Compare new configuration options with your file instead of replacing it with the template. Wait for running jobs, back up both scripts and the active configuration, then replace the scripts from the new package. Review `STOP_ONLY_BACKUP_VMS=yes`; an existing `no` setting is not changed automatically.
 
 New backups use `YYYY_MM_DD_HH-MM-SS`, for example `2026_09_28_21-30-00`. Existing backups using `DD_MM_YYYY_HH-MM-SS` remain usable for restore and chronological retention. They do not need to be renamed.
 
@@ -250,7 +252,7 @@ Automatic cleanup runs only after a successful backup. If a run fails, existing 
 
 Positive integer values for `RETENTION_COUNT` set the number of runs to keep. `0` disables deletion. Invalid values disable cleanup with a warning.
 
-The supplied manual remains at **V4.0**. Its examples using the old date format are still valid; use the actual new folder name when restoring newer backups.
+The supplied manual is updated to **V4.0.2**. Its examples using the old date format are still valid; use the actual new folder name when restoring newer backups.
 
 ### Project structure and documentation
 
@@ -259,7 +261,7 @@ The supplied manual remains at **V4.0**. Its examples using the old date format 
 | Backup script | [VMBackup/vm_backup.sh](VMBackup/vm_backup.sh) |
 | Restore script | [VMBackup/vm_restore.sh](VMBackup/vm_restore.sh) |
 | Configuration template | [VMBackup/vm_backup.conf](VMBackup/vm_backup.conf) |
-| German/English manual | [UGREEN_VM_Backup_Restore_Handbuch_DE-EN_V4.0.pdf](UGREEN_VM_Backup_Restore_Handbuch_DE-EN_V4.0.pdf) |
+| German/English manual | [UGREEN_VM_Backup_Restore_Handbuch_DE-EN_V4.0.2.pdf](UGREEN_VM_Backup_Restore_Handbuch_DE-EN_V4.0.2.pdf) |
 | Changes | [CHANGELOG.md](CHANGELOG.md) |
 | Usage notes | [DISCLAIMER.md](DISCLAIMER.md) |
 
@@ -276,3 +278,7 @@ The supplied manual remains at **V4.0**. Its examples using the old date format 
 ### License and usage
 
 [MIT License](LICENSE). Read the [usage notes](DISCLAIMER.md) and maintain your own backups. Roman Glos / UGREEN NAS Community. Feedback through GitHub is welcome.
+
+## Paketprüfung / Package verification
+
+[BUILDING.md](BUILDING.md) beschreibt den geprüften Paketbau. / See [BUILDING.md](BUILDING.md) for package build and verification.

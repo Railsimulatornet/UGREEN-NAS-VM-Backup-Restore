@@ -13,3 +13,6 @@ Thumbs.db
 
 *.docx
 *.zip
+__pycache__/
+*.pyc
+dist/

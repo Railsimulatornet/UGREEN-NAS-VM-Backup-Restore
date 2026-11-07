@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# vm_restore.sh - UGREEN NAS VM Restore incl. Disaster Recovery (DR) v4.0
+# vm_restore.sh - UGREEN NAS VM Restore incl. Disaster Recovery (DR) v4.0.2
 # Copyright (c) 2026 Roman Glos for Ugreen NAS Community
 # For UGREEN VM App / com.ugreen.kvm
 # License: use at your own risk
