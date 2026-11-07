@@ -1,3 +1,8 @@
+## 4.0.2 - 2026-11-07
+
+- DE: Nur ausgewählte VMs stoppen; Stop- und Neustartfehler sicher behandeln. Pakete und Anleitung sind abgeglichen.
+- EN: Stop selected VMs only and handle shutdown/restart failures safely. Packages and instructions are aligned.
+
 # Changelog
 
 ## V4.0.1 - 2026-09-28

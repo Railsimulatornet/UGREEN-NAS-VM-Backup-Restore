@@ -12,7 +12,7 @@ import unittest
 
 REPO = Path(__file__).resolve().parents[1]
 BACKUP = Path(os.environ.get('VM_BACKUP_SOURCE', REPO / 'VMBackup/vm_backup.sh'))
-RESTORE = REPO / 'VMBackup/vm_restore.sh'
+RESTORE = Path(os.environ.get('VM_RESTORE_SOURCE', REPO / 'VMBackup/vm_restore.sh'))
 SOURCE = BACKUP.read_text()
 
 
