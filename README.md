@@ -290,3 +290,7 @@ The supplied manual is updated to **V4.0.3**. Its examples using the old date fo
 ## Paketprüfung / Package verification
 
 [BUILDING.md](BUILDING.md) beschreibt den geprüften Paketbau. / See [BUILDING.md](BUILDING.md) for package build and verification.
+
+## Wartung / Maintenance
+
+[MAINTENANCE.md](MAINTENANCE.md) beschreibt die automatischen Prüfungen und Paketupdates. / Automatic checks and package updates are described in [MAINTENANCE.md](MAINTENANCE.md).
